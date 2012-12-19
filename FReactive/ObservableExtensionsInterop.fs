@@ -76,8 +76,8 @@ module Observable =
    let [<Extension>] Throttle xs samplePeriod =
       xs |> Obs.throttle samplePeriod
 
-   let [<Extension>] ToProducer xs =
-      xs |> Obs.fromSeq
+   let [<Extension>] ToObservable xs =
+      xs |> Obs.ofSeq
       
    let [<Extension>] Return x =
       Obs.yieldReturn x

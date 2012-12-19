@@ -119,7 +119,7 @@ let inline skipWhile f xs =
       let hasStarted = ref false
       apply xs <| fun consumer x ->
          if !hasStarted then consumer.OnNext x
-         else if f x then 
+         else if not(f x) then 
             consumer.OnNext x
             hasStarted := true
 
@@ -194,18 +194,19 @@ let throttle periodLength xs =
          consumer.OnNext acc.[0]
       acc.Clear())
 
-let fromSeq xs =
-   create <| fun consumer ->
-      for x in xs do
-         consumer.OnNext x
-      upcast new EmptyDisposable()
-
 let yieldReturn x =
    create <| fun consumer ->
       consumer.OnNext x
       consumer.OnCompleted()
       upcast new EmptyDisposable() 
 
+let ofSeq(xs:_ seq) =
+   create <| fun observer ->
+      for x in xs do observer.OnNext x
+      observer.OnCompleted()
+      upcast new EmptyDisposable()
+
+/// OnCompleted doesn't work properly.
 let merge xss =
    create <| fun consumer ->
       let subscriptions = new CompositeDisposable()
@@ -235,10 +236,10 @@ let merge xss =
       upcast subscriptions
 
 let mergeSeq xss =
-   xss |> fromSeq |> merge
+   xss |> ofSeq |> merge
 
 let mergeWith ys xs =
-   seq { yield xs; yield ys } |> fromSeq |> merge
+   seq { yield xs; yield ys } |> ofSeq |> merge
 
 let switch xss =
    create <| fun consumer ->
@@ -372,3 +373,14 @@ let inline distinctUntilChanged f xs =
             consumer.OnNext x
          hasLastSeen := true
          lastSeen := y)
+
+let toArray xs  =
+   // TODO: What about cancellation?
+   Async.FromContinuations(fun (onResult, onError, _) ->
+      let ys = ResizeArray()
+      xs |> iterSafe 
+         (fun x -> ys.Add x)
+         (fun ex -> onError ex)
+         (fun () -> onResult(ys.ToArray()))
+      |> ignore<IDisposable>
+   )
